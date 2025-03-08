@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.time.Instant;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.messaging.Message;
 
 @Service
 public class KafkaConsumerService {
@@ -26,21 +28,20 @@ public class KafkaConsumerService {
     public void consumeUserActivity(UserActivityRequest userActivityRequest) {
         log.info("####Consumed user activity####: {}", userActivityRequest);
 
-        UserActivity userActivity = null; // 提升作用域
-
         // 1. 将数据保存到MySQL (dwd_wx_user_info)
+        UserActivity userActivity = new UserActivity();
+        userActivity.setOpenid(userActivityRequest.getOpenid());
+        userActivity.setLanguage(userActivityRequest.getLanguage());
+        userActivity.setSubscribe(userActivityRequest.getSubscribe());
+        if (userActivityRequest.getSubscribeTime() != null) {
+            userActivity.setSubscribeTime(userActivityRequest.getSubscribeTime());
+        } else {
+            userActivity.setSubscribeTime(Instant.now()); // 赋予当前时间作为默认值
+        }
+        userActivity.setUnionid(userActivityRequest.getUnionid());
+        userActivity.setProcessed(userActivityRequest.getProcessed());
+
         try {
-            userActivity = new UserActivity();
-            userActivity.setOpenid(userActivityRequest.getOpenid());
-            userActivity.setLanguage(userActivityRequest.getLanguage());
-            userActivity.setSubscribe(userActivityRequest.getSubscribe());
-            if (userActivityRequest.getSubscribeTime() != null) {
-                userActivity.setSubscribeTime(userActivityRequest.getSubscribeTime());
-            } else {
-                userActivity.setSubscribeTime(Instant.now()); // 赋予当前时间作为默认值
-            }
-            userActivity.setUnionid(userActivityRequest.getUnionid());
-            userActivity.setProcessed(userActivityRequest.getProcessed());
             userActivityRepository.save(userActivity);
             log.info("Saved user activity to MySQL (dwd_wx_user_info): {}", userActivity);
         } catch (Exception e) {
@@ -48,15 +49,16 @@ public class KafkaConsumerService {
         }
 
         // 2. 将数据保存到Redis
-        if (userActivity != null) { // 确保userActivity不为空
-            try {
-                redisService.cacheUserActivity(userActivityRequest.getOpenid(), userActivity);
-                log.info("Cached user activity in Redis: {}", userActivity);
-            } catch (Exception e) {
-                log.error("Failed to cache user activity in Redis", e);
-            }
-        } else {
-            log.warn("UserActivity is null, skipping Redis cache");
+        try {
+            redisService.cacheUserActivity(userActivityRequest.getOpenid(), userActivity);
+            log.info("Cached user activity in Redis: {}", userActivity);
+        } catch (Exception e) {
+            log.error("Failed to cache user activity in Redis", e);
         }
+    }
+
+    @KafkaListener(id = "errorHandler", topics = "${spring.kafka.topics.user-activities}.DLT")
+    public void handleError(Message<?> message) {
+        log.error("Failed to process message: {}", message);
     }
 } 

@@ -25,21 +25,16 @@ public class RedisService {
 
     private static final Logger log = LoggerFactory.getLogger(RedisService.class);
 
-    public RedisService(RedisTemplate<String, Object> redisTemplate, StringRedisTemplate stringRedisTemplate, ObjectMapper objectMapper) {
+    public RedisService(RedisTemplate<String, Object> redisTemplate, StringRedisTemplate stringRedisTemplate) {
         this.redisTemplate = redisTemplate;
         this.stringRedisTemplate = stringRedisTemplate;
-        this.objectMapper = objectMapper;
-        // 配置ObjectMapper以支持Instant类型
+        this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-
-        // 配置RedisTemplate的序列化器
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(this.objectMapper);
-        redisTemplate.setValueSerializer(serializer);
+        redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer(objectMapper));
     }
 
     public void cacheUserActivity(String openid, UserActivity userActivity) {
-        // 将UserActivity对象序列化并缓存到Redis
         String key = "user_activity:" + openid;
         redisTemplate.opsForValue().set(key, userActivity, expirationTime, TimeUnit.SECONDS);
     }

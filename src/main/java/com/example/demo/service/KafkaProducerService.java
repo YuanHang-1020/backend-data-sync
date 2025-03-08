@@ -17,9 +17,6 @@ public class KafkaProducerService {
     private final KafkaTemplate<String, UserActivityRequest> kafkaTemplate;
     private final Random random = new Random();
 
-    @Value("${spring.kafka.bootstrap-servers}")
-    private String bootstrapServers; // 使用配置文件中的地址
-
     @Value("${spring.kafka.topics.user-activities}")
     private String topic;
 
